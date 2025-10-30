@@ -6,6 +6,10 @@ import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.CR
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.LF
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.START
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPAlignmentScope
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBoldScope
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTallScope
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPWideScope
 
 // TODO: Update, account for max character count when needed
 class EPPrintCommandBuilder(val cpl: Int) {
@@ -29,6 +33,24 @@ class EPPrintCommandBuilder(val cpl: Int) {
             raw(*CR)
             raw(*LF)
         }
+    }
+
+    fun bold(setup: EPBoldScope.() -> Unit) {
+        raw(*EPPrintConstants.BOLD_ON)
+        EPBoldScope(this).setup()
+        raw(*EPPrintConstants.BOLD_OFF)
+    }
+
+    fun wide(setup: EPWideScope.() -> Unit) {
+        raw(*EPPrintConstants.WIDE_ON)
+        EPWideScope(this).setup()
+        raw(*EPPrintConstants.WIDE_OFF)
+    }
+
+    fun tall(setup: EPTallScope.() -> Unit) {
+        raw(*EPPrintConstants.TALL_ON)
+        EPTallScope(this).setup()
+        raw(*EPPrintConstants.TALL_OFF)
     }
 
     fun align(alignment: EPPrintAlignment, setup: EPAlignmentScope.() -> Unit) {
@@ -92,8 +114,3 @@ fun escpos(cpl: Int, setup: EPPrintCommandBuilder.() -> Unit): ByteArray {
     return builder.build()
 }
 
-class EPAlignmentScope(private val builder: EPPrintCommandBuilder) {
-    fun text(content: String) {
-        builder.text(content)
-    }
-}

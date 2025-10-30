@@ -18,5 +18,14 @@ object EPPrintConstants {
     val ALIGN_CENTER = ESC + byteArrayOf(0x61, 0x01)
     val ALIGN_RIGHT = ESC + byteArrayOf(0x61, 0x02)
 
+    val BOLD_ON = ESC + byteArrayOf(0x21, 0x08)
+    val BOLD_OFF = ESC + byteArrayOf(0x21, 0x00)
+
+    val TALL_ON = ESC + byteArrayOf(0x21, 0x10)
+    val TALL_OFF = ESC + byteArrayOf(0x21, 0x00)
+
+    val WIDE_ON = ESC + byteArrayOf(0x21, 0x20)
+    val WIDE_OFF = ESC + byteArrayOf(0x21, 0x00)
+
     val RASTER_IMAGE = GS + byteArrayOf(0x76, 0x30, 0x00)
 }
