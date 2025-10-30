@@ -3,7 +3,6 @@ package app.lucys.lib.lucyescposkt.android.escpos
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
-import android.util.Log
 import app.lucys.lib.lucyescposkt.core.escpos.EPOfflineStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPaperStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrintResult
@@ -14,7 +13,6 @@ import app.lucys.lib.lucyescposkt.core.printer.PrinterConnectionSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -45,9 +43,7 @@ class BTManagerEPConnection(
             socket.connect()
 
             true
-        } catch (e: Exception) {
-            Log.e("BTManagerEPConnection", "Error connecting to printer", e)
-
+        } catch (_: Exception) {
             _socket?.close()
             _socket = null
             false
@@ -72,9 +68,6 @@ class BTManagerEPConnection(
         input.read(buffer)
 
         val response = buffer.first()
-        Log.d("BTManagerEPConnection", "Paper status response: $response")
-
-
         val isOutOfPaper = response.and(EPStatusConstants.PAPER_EMPTY_STATUS) != 0.toByte()
         if (isOutOfPaper) {
             return EPPaperStatus.EMPTY
@@ -92,8 +85,6 @@ class BTManagerEPConnection(
         input: InputStream,
         output: OutputStream,
     ): EPPrinterStatus? {
-        Log.d("BTManagerEPConnection", "Sending printer status request")
-
         output.write(EPStatusConstants.PRINTER_STATUS)
         output.flush()
 
@@ -103,14 +94,11 @@ class BTManagerEPConnection(
         val executionTime = measureTime {
             input.read(buffer)
         }
-        Log.d("BTManagerEPConnection", "Reading printer status time: $executionTime")
 
         val response = buffer.first()
-        Log.d("BTManagerEPConnection", "Status response: $response")
         val isOffline = response.and(EPStatusConstants.STATUS_CHECK_OFFLINE) != 0.toByte()
         val isBusy = response.and(EPStatusConstants.STATUS_CHECK_BUSY) != 0.toByte()
 
-        Log.d("BTManagerEPConnection", "Status is offline: $isOffline, busy: $isBusy")
         return EPPrinterStatus(isOnline = !isOffline, isBusy = isBusy)
     }
 
@@ -118,7 +106,6 @@ class BTManagerEPConnection(
         input: InputStream,
         output: OutputStream,
     ): EPOfflineStatus? {
-        Log.d("BTManagerEPConnection", "Sending offline status request")
         output.write(EPStatusConstants.OFFLINE_CAUSE_STATUS)
         output.flush()
 
@@ -128,7 +115,6 @@ class BTManagerEPConnection(
         input.read(buffer)
 
         val response = buffer.first()
-        Log.d("BTManagerEPConnection", "offline status response: $response")
 
         val isCoverOpen = response.and(EPStatusConstants.OFFLINE_COVER_OPEN) != 0.toByte()
         val isFeedPressed = response.and(EPStatusConstants.OFFLINE_PAPER_FEED) != 0.toByte()
@@ -143,36 +129,6 @@ class BTManagerEPConnection(
         )
     }
 
-    private suspend fun getStatusOverview(
-        input: InputStream,
-        output: OutputStream,
-        timeout: Duration,
-    ): EPPrinterStatus? {
-        output.write(EPStatusConstants.PRINTER_STATUS_AWAIT)
-        output.flush()
-
-        delay(100)
-
-        val buffer = ByteArray(1)
-
-        try {
-            withTimeout(timeout) {
-                input.read(buffer)
-            }
-        } catch (_: Exception) {
-            return null
-        }
-
-        val response = buffer.first()
-        Log.d("BTManagerEPConnection", "Status response: $response")
-
-        val isOffline = response.and(EPStatusConstants.STATUS_CHECK_OFFLINE) != 0.toByte()
-        val isBusy = response.and(EPStatusConstants.STATUS_CHECK_BUSY) != 0.toByte()
-
-        Log.d("BTManagerEPConnection", "Status is offline: $isOffline, busy: $isBusy")
-        return EPPrinterStatus(isOnline = !isOffline, isBusy = isBusy)
-    }
-
     @OptIn(ExperimentalTime::class)
     override suspend fun send(
         command: ByteArray,
@@ -185,12 +141,9 @@ class BTManagerEPConnection(
             val writer = socket.outputStream
 
             val initialStatus = asyncGetStatusOverview(reader, writer)
-            Log.d("BTManagerEPConnection", "Initial status: $initialStatus")
-
             if (initialStatus == null) {
                 writer.close()
                 reader.close()
-                Log.d("BTManagerEPConnection", "Initial status is null")
                 return@withContext EPPrintResult.NotConnected
             }
 
@@ -200,18 +153,15 @@ class BTManagerEPConnection(
                 writer.close()
                 reader.close()
 
-                Log.d("BTManagerEPConnection", "Initial status is offline")
                 return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
             }
 
             val paperStatus = asyncGetPaperStatus(reader, writer)
-            Log.d("BTManagerEPConnection", "Paper status: $paperStatus")
 
             if (paperStatus == EPPaperStatus.EMPTY) {
                 writer.close()
                 reader.close()
 
-                Log.d("BTManagerEPConnection", "Paper is empty")
                 return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
             }
 
@@ -222,29 +172,24 @@ class BTManagerEPConnection(
             val timestamp = Clock.System.now()
 
             do {
-                Log.d("BTManagerEPConnection", "Trying to read status")
                 val res = asyncGetStatusOverview(reader, writer)
 
                 if (res == null) {
                     writer.flush()
                     writer.close()
                     reader.close()
-                    Log.d("BTManagerEPConnection", "getStatusOverview returned null")
                     return@withContext EPPrintResult.NotConnected
                 }
 
                 status = res
-                Log.d("BTManagerEPConnection", "GET STATUS $res")
 
                 val timeDiff = Clock.System.now().minus(timestamp)
-                Log.d("BTManagerEPConnection", "Time diff: $timeDiff")
                 delay(50)
             } while (
                 res.isBusy && timeDiff < timeout
             )
 
             if (status.isOnline) {
-                Log.d("BTManagerEPConnection", "Status is online")
                 val paperStatus = asyncGetPaperStatus(reader, writer)
 
                 writer.flush()
@@ -259,13 +204,11 @@ class BTManagerEPConnection(
             writer.close()
             reader.close()
 
-            Log.d("BTManagerEPConnection", "Status is not online")
             return@withContext offline
                 ?.let { EPPrintResult.Failed(it) }
                 ?: EPPrintResult.Timeout(status)
         }
 
-        Log.d("BTManagerEPConnection", "Socket is null")
         EPPrintResult.NotConnected
     }
 }
