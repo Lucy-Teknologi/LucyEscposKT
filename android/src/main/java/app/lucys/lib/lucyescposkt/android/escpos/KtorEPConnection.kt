@@ -33,6 +33,7 @@ import kotlin.time.ExperimentalTime
 
 class KtorEPConnection(
     override val spec: PrinterConnectionSpec.TCP,
+    val client: HttpClient? = null,
 ) : EPConnection {
 
     private var _client: HttpClient? = null
@@ -46,7 +47,7 @@ class KtorEPConnection(
     override suspend fun connect(timeout: Duration): Boolean = withContext(Dispatchers.IO) {
         try {
             withTimeout(timeout) {
-                _client = HttpClient(OkHttp)
+                _client = client ?: HttpClient(OkHttp)
 
                 val manager = ActorSelectorManager(Dispatchers.IO)
                 val address = InetSocketAddress(spec.ip, spec.port.toInt())
