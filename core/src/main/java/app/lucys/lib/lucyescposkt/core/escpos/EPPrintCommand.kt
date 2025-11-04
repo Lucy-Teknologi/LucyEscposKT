@@ -7,11 +7,9 @@ import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.CR
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.LF
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.START
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPAlignmentScope
-import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBoldScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBulletScope
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPStyleScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTabScope
-import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTallScope
-import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPWideScope
 
 // TODO: Update, account for max character count when needed
 class EPPrintCommandBuilder(val cpl: Int) {
@@ -37,22 +35,22 @@ class EPPrintCommandBuilder(val cpl: Int) {
         }
     }
 
-    fun bold(setup: EPBoldScope.() -> Unit) {
-        raw(*EPPrintConstants.BOLD_ON)
-        EPBoldScope(this).setup()
-        raw(*EPPrintConstants.BOLD_OFF)
+    fun bold(setup: EPStyleScope.() -> Unit) {
+        val scope = EPStyleScope(isBold = true, isWide = false, isTall = false, builder = this)
+        scope.setup()
+        scope.build()
     }
 
-    fun wide(setup: EPWideScope.() -> Unit) {
-        raw(*EPPrintConstants.WIDE_ON)
-        EPWideScope(this).setup()
-        raw(*EPPrintConstants.WIDE_OFF)
+    fun wide(setup: EPStyleScope.() -> Unit) {
+        val scope = EPStyleScope(isBold = false, isWide = true, isTall = false, builder = this)
+        scope.setup()
+        scope.build()
     }
 
-    fun tall(setup: EPTallScope.() -> Unit) {
-        raw(*EPPrintConstants.TALL_ON)
-        EPTallScope(this).setup()
-        raw(*EPPrintConstants.TALL_OFF)
+    fun tall(setup: EPStyleScope.() -> Unit) {
+        val scope = EPStyleScope(isBold = false, isWide = false, isTall = true, builder = this)
+        scope.setup()
+        scope.build()
     }
 
     fun align(alignment: EPPrintAlignment, setup: EPAlignmentScope.() -> Unit) {
