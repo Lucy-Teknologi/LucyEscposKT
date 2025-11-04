@@ -8,6 +8,7 @@ import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.LF
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.START
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPAlignmentScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBoldScope
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBulletScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTabScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTallScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPWideScope
@@ -85,6 +86,12 @@ class EPPrintCommandBuilder(val cpl: Int) {
         scope.setup()
         scope.flush()
         scope.resetTab()
+    }
+
+    fun bullet(symbol: String, indent: Int = 2, spacing: Int = 1, setup: EPBulletScope.() -> Unit) {
+        val scope = EPBulletScope(indent, spacing, symbol, this)
+        scope.setup()
+        scope.build()
     }
 
     fun cut(type: EPCutType = EPCutType.FULL) {
