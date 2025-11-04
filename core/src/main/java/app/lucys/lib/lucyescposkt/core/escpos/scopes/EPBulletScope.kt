@@ -62,6 +62,9 @@ class EPBulletScope(
             builder.raw(*prepend)
             builder.raw(*symbol.toByteArray())
 
+            val spaceAppend = " ".repeat(spacing).toByteArray()
+            builder.raw(*spaceAppend)
+
             val indentation = indent + spacing + 1
             val limit = builder.cpl - indentation
 
