@@ -8,6 +8,7 @@ import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.LF
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.START
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPAlignmentScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBoldScope
+import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTabScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTallScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPWideScope
 
@@ -77,6 +78,13 @@ class EPPrintCommandBuilder(val cpl: Int) {
 
     fun right(setup: EPAlignmentScope.() -> Unit) {
         align(EPPrintAlignment.RIGHT, setup)
+    }
+
+    fun tab(position: EPTabPosition, setup: EPTabScope.() -> Unit) {
+        val scope = EPTabScope(this, position)
+        scope.setup()
+        scope.flush()
+        scope.resetTab()
     }
 
     fun cut(type: EPCutType = EPCutType.FULL) {
