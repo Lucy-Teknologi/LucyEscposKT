@@ -3,6 +3,7 @@ package app.lucys.lib.lucyescposkt.core.escpos.scopes
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrintCommandBuilder
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_BOLD
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_OFF
+import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_ON
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_TALL
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_WIDE
 
@@ -52,7 +53,7 @@ class EPStyleScope(
             styleByte = styleByte or STYLE_WIDE
         }
 
-        builder.raw(styleByte.toByte())
+        builder.raw(*STYLE_ON, styleByte.toByte())
         for (text in buffer) {
             builder.text(text)
         }

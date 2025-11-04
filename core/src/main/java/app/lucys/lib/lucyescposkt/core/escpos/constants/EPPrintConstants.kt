@@ -21,6 +21,8 @@ object EPPrintConstants {
     const val STYLE_BOLD = 0x08
     const val STYLE_TALL = 0x10
     const val STYLE_WIDE = 0x20
+
+    val STYLE_ON = ESC + byteArrayOf(0x21)
     val STYLE_OFF = ESC + byteArrayOf(0x21, 0x00)
 
 
