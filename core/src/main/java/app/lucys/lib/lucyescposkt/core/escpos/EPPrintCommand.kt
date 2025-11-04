@@ -83,7 +83,6 @@ class EPPrintCommandBuilder(val cpl: Int) {
         val scope = EPTabScope(this, position)
         scope.setup()
         scope.flush()
-        scope.resetTab()
     }
 
     fun bullet(symbol: String, indent: Int = 2, spacing: Int = 1, setup: EPBulletScope.() -> Unit) {

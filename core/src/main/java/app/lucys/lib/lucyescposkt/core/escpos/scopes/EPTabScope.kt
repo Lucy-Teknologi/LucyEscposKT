@@ -140,10 +140,4 @@ class EPTabScope(
         this.leftText = ""
         this.rightText = ""
     }
-
-    fun resetTab() {
-        builder.raw(*ESC, 0x44)
-        builder.raw(0x00)
-    }
-
 }
