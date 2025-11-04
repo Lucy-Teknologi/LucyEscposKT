@@ -28,13 +28,11 @@ class EPTabScope(
     }
 
     private fun setTabPosition(pos: Int) {
-        builder.raw(*(ESC + 0x44))
-        builder.raw(pos.toByte())
-        builder.raw(0x00)
+        builder.raw(*ESC, 0x44, pos.toByte(), 0x01, 0x00)
     }
 
     private fun moveToTab() {
-        builder.raw(0x09)
+        builder.raw(*byteArrayOf(0x09))
     }
 
     private fun fixed(value: Int, spacing: Int, alignment: EPTabHorAlignment) {
@@ -50,6 +48,7 @@ class EPTabScope(
             builder.raw(*chunkedLeft.first().toByteArray())
             moveToTab()
             builder.raw(*chunkedRight.first().toByteArray())
+            builder.feed()
             return
         }
 
@@ -143,7 +142,7 @@ class EPTabScope(
     }
 
     fun resetTab() {
-        builder.raw(*(ESC + 0x44))
+        builder.raw(*ESC, 0x44)
         builder.raw(0x00)
     }
 
