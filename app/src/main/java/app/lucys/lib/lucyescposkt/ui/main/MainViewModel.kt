@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -25,6 +27,7 @@ class MainViewModel @Inject constructor(
         _devices.update { scanner.getPairedDevices() }
     }
 
+    @OptIn(ExperimentalTime::class)
     fun connect(device: PrinterModel) {
         val connection = AndroidEPConnectionFactory().create(device.connectionSpec)
         val command = escpos(device.characterCount) {
@@ -60,6 +63,8 @@ class MainViewModel @Inject constructor(
                 }
             }
 
+            val instant = Instant.fromEpochSeconds(1762322927)
+
             tab(EPTabPosition.Fixed(value = 16, spacing = 1)) {
                 setLeft("HELLO")
                 setRight("WORLD")
@@ -68,7 +73,7 @@ class MainViewModel @Inject constructor(
                 setRight("5 NOVEMBER 2025")
                 flush()
                 text("Queued At")
-                setLeft("5 NOVEMBER 2025")
+                setLeft("${instant.epochSeconds}")
                 setRight("12:00")
             }
             feedAndCut()

@@ -41,8 +41,8 @@ class EPTabScope(
 
         setTabPosition(value)
 
-        val chunkedLeft = accumulateTexts(leftText.split(" "), leftMaxLength)
-        val chunkedRight = accumulateTexts(rightText.split(" "), rightMaxLength)
+        val chunkedLeft = leftText.chunked(leftMaxLength)
+        val chunkedRight = rightText.chunked(rightMaxLength)
 
         if (chunkedLeft.size == 1 && chunkedRight.size == 1) {
             builder.raw(*chunkedLeft.first().toByteArray())
@@ -91,7 +91,7 @@ class EPTabScope(
         fixed(weightedCPL, spacing, alignment)
     }
 
-    internal tailrec fun accumulateTexts(
+    private tailrec fun accumulateTexts(
         texts: List<String>, // in split by space
         limit: Int,
         accumulator: List<String> = emptyList(), //in split by lines
