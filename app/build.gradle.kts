@@ -16,8 +16,8 @@ android {
         applicationId = "app.lucys.lib.lucyescposkt"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.0.0-beta7"
+        versionCode = 8
+        versionName = "1.0.0-rc01"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
