@@ -41,8 +41,8 @@ class EPTabScope(
 
         setTabPosition(value)
 
-        val chunkedLeft = leftText.chunked(leftMaxLength)
-        val chunkedRight = rightText.chunked(rightMaxLength)
+        val chunkedLeft = accumulateTexts(leftText.split(" "), leftMaxLength)
+        val chunkedRight = accumulateTexts(rightText.split(" "), rightMaxLength)
 
         if (chunkedLeft.size == 1 && chunkedRight.size == 1) {
             builder.raw(*chunkedLeft.first().toByteArray())
@@ -104,11 +104,13 @@ class EPTabScope(
         var counter = 0
 
         for (text in texts) {
-            if (string.length + text.length + 1 > limit) {
+            val length = string.length + text.length
+
+            if (length > limit) {
                 break
             }
 
-            if (counter > 0) {
+            if (counter > 0 && length + 1 <= limit) {
                 string.append(" ")
             }
 
@@ -119,7 +121,7 @@ class EPTabScope(
         return accumulateTexts(
             texts = texts.drop(counter),
             limit = limit,
-            accumulator = accumulator + string.toString(),
+            accumulator = accumulator + string.trim().toString(),
         )
     }
 
