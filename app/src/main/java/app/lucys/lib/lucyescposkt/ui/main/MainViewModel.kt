@@ -63,17 +63,15 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            val instant = Instant.fromEpochSeconds(1762322927)
-
-            tab(EPTabPosition.Fixed(value = 16, spacing = 1)) {
+            tab(EPTabPosition.Fixed(value = 27, spacing = 0)) {
                 setLeft("HELLO")
                 setRight("WORLD")
                 flush()
-                setLeft("Created At:")
-                setRight("5 NOVEMBER 2025")
+                setLeft("25 September 2025")
+                setRight("12:00")
                 flush()
                 text("Queued At")
-                setLeft("${instant.epochSeconds}")
+                setLeft("23 November 2020")
                 setRight("12:00")
             }
             feedAndCut()
