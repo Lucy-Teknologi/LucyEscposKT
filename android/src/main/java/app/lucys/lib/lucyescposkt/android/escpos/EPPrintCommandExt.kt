@@ -7,7 +7,7 @@ import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.RASTER_
 import java.io.ByteArrayOutputStream
 
 fun EPPrintCommandBuilder.image(bitmap: Bitmap) {
-    convertBitmapToRasterBytes(bitmap)
+    raw(*convertBitmapToRasterBytes(bitmap))
     feed(1)
 }
 
