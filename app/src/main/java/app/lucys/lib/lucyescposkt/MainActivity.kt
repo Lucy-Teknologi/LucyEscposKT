@@ -11,22 +11,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import app.lucys.lib.lucyescposkt.ui.main.MainRoute
 import app.lucys.lib.lucyescposkt.ui.theme.LucyEscposKTTheme
+import dagger.hilt.android.AndroidEntryPoint
 
-// TODO: CREATE SAMPLE APP HERE!
-
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             LucyEscposKTTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                MainRoute()
             }
         }
     }

@@ -28,7 +28,7 @@ class EPTabScope(
     }
 
     private fun setTabPosition(pos: Int) {
-        builder.raw(*ESC, 0x44, pos.toByte(), 0x01, 0x00)
+        builder.raw(*ESC, 0x44, pos.toByte(), 0x00)
     }
 
     private fun moveToTab() {
@@ -47,6 +47,12 @@ class EPTabScope(
         if (chunkedLeft.size == 1 && chunkedRight.size == 1) {
             builder.raw(*chunkedLeft.first().toByteArray())
             moveToTab()
+
+            if (alignment == EPTabHorAlignment.RIGHT) {
+                val padding = " ".repeat(rightMaxLength - chunkedRight.first().length)
+                builder.raw(*padding.toByteArray())
+            }
+
             builder.raw(*chunkedRight.first().toByteArray())
             builder.feed()
             return
