@@ -70,7 +70,6 @@ class BTManagerEPConnection(
         input.read(buffer)
 
         val response = buffer.first()
-        Log.d("BTManagerEPConnection", "PAPER STATUS BYTE: $response")
 
         val isOutOfPaper = response.and(EPStatusConstants.PAPER_EMPTY_STATUS) != 0.toByte()
         if (isOutOfPaper) {
@@ -118,7 +117,6 @@ class BTManagerEPConnection(
         input.read(buffer)
 
         val response = buffer.first()
-        Log.d("BTManagerEPConnection", "OFFLINE STATUS BYTE: $response")
 
         val isCoverOpen = response.and(EPStatusConstants.OFFLINE_COVER_OPEN) != 0.toByte()
         val isFeedPressed = response.and(EPStatusConstants.OFFLINE_PAPER_FEED) != 0.toByte()
@@ -205,8 +203,6 @@ class BTManagerEPConnection(
                 if (!isReady) return@withContext EPPrintResult.NotConnected
                 status = asyncGetStatusOverview(reader, writer)
             } catch (_: TimeoutCancellationException) {
-                Log.d("BTManagerEPConnection", "TIMEOUT EXCEPTION")
-
                 val offline = asyncGetOfflineStatus(reader, writer)
                 return@withContext EPPrintResult.Failed(
                     offline ?: EPOfflineStatus.outOfPaper()
