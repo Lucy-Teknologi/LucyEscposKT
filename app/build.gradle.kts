@@ -16,8 +16,8 @@ android {
         applicationId = "app.lucys.lib.lucyescposkt"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.0.0-rc01"
+        versionCode = 9
+        versionName = "1.0.0-rc02"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -62,6 +62,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.ktor)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

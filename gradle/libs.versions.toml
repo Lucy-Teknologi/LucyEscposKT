@@ -7,7 +7,7 @@ junitVersion = "1.3.0"
 espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.9.4"
 activityCompose = "1.11.0"
-composeBom = "2025.10.01"
+composeBom = "2025.11.00"
 appcompat = "1.7.1"
 material = "1.13.0"
 ktor = "3.3.1"
@@ -15,6 +15,7 @@ kspVer = "2.2.21-RC2-2.0.4"
 hiltVer = "2.57.2"
 hiltNavigationCompose = "1.3.0"
 accompanistPermissions = "0.37.3"
+coil-version = "3.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,6 +40,10 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltVer" }
 hilt-complier = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltVer" }
+
+# Coil
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil-version" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil-version" }
 
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 

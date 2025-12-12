@@ -22,12 +22,13 @@ import io.ktor.utils.io.cancel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.experimental.and
-import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
@@ -186,25 +187,25 @@ class KtorEPConnection(
             writer.writeFully(command)
             writer.flush()
 
-            var status: EPPrinterStatus
-            val timestamp = Clock.System.now()
-
-            do {
-                val res = getStatusOverview(reader, writer)
-
-                if (res == null) {
-                    writer.flushAndClose()
-                    reader.cancel()
-                    return@withContext EPPrintResult.NotConnected
+            var status: EPPrinterStatus?
+            try {
+                status = withTimeout(timeout) {
+                    withContext(Dispatchers.IO + NonCancellable) {
+                        getStatusOverview(reader, writer)
+                    }
                 }
+            } catch (_: TimeoutCancellationException) {
+                val fail = getOfflineStatus(reader, writer)
+                return@withContext EPPrintResult.Failed(
+                    fail ?: EPOfflineStatus.outOfPaper()
+                )
+            }
 
-                status = res
-
-                val timeDiff = Clock.System.now().minus(timestamp)
-                delay(500)
-            } while (
-                res.isBusy && timeDiff < timeout
-            )
+            if (status == null) {
+                writer.flushAndClose()
+                reader.cancel()
+                return@withContext EPPrintResult.NotConnected
+            }
 
             if (status.isOnline) {
                 val paperStatus = getPaperStatus(reader, writer)
