@@ -3,6 +3,7 @@ package app.lucys.lib.lucyescposkt.di
 import android.content.Context
 import app.lucys.lib.lucyescposkt.data.AndroidBluetoothPrinterScanner
 import app.lucys.lib.lucyescposkt.data.BluetoothPrinterScanner
+import app.lucys.lib.lucyescposkt.data.CoilImageLoader
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -18,4 +19,9 @@ object ScannerModule {
     @Singleton
     fun bindsBTScanner(@ApplicationContext context: Context): BluetoothPrinterScanner =
         AndroidBluetoothPrinterScanner(context)
+
+    @Provides
+    @Singleton
+    fun provideImageLoader(@ApplicationContext context: Context): CoilImageLoader =
+        CoilImageLoader(context)
 }

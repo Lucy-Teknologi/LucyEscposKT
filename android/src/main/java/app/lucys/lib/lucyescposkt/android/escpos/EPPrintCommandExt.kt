@@ -11,6 +11,12 @@ fun EPPrintCommandBuilder.image(bitmap: Bitmap) {
     feed(1)
 }
 
+fun EPPrintCommandBuilder.imageWithLabel(bitmap: Bitmap, label: String) {
+    raw(*convertBitmapToRasterBytes(bitmap))
+    raw(*label.toByteArray())
+    feed(1)
+}
+
 private fun EPPrintCommandBuilder.convertBitmapToRasterBytes(bitmap: Bitmap): ByteArray {
     val width = bitmap.width
     val height = bitmap.height
