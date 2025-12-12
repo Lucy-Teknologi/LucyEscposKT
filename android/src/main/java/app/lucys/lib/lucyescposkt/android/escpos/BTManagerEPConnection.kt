@@ -3,7 +3,6 @@ package app.lucys.lib.lucyescposkt.android.escpos
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
-import android.util.Log
 import app.lucys.lib.lucyescposkt.core.escpos.EPOfflineStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPaperStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrintResult
