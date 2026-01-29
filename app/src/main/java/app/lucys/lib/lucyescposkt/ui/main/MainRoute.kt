@@ -19,10 +19,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lucys.lib.lucyescposkt.core.escpos.EPStreamData
 import app.lucys.lib.lucyescposkt.core.printer.PrinterModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -48,6 +52,9 @@ fun MainRoute(
         }
     )
 
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    var isLogVisible by remember { mutableStateOf(false) }
+
     LaunchedEffect(key1 = requiredPermissionState) {
         if (!requiredPermissionState.allPermissionsGranted) {
             requiredPermissionState.launchMultiplePermissionRequest()
@@ -67,6 +74,9 @@ fun MainRoute(
                     TextButton(onClick = viewModel::refresh) {
                         Text("Refresh")
                     }
+                    TextButton(onClick = { isLogVisible = !isLogVisible }) {
+                        Text("Log")
+                    }
                 }
             )
         }
@@ -76,15 +86,42 @@ fun MainRoute(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(all = 12.dp),
         ) {
-            items(devices) { device ->
-                PrinterCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onTap = { viewModel.connect(device) },
-                    model = device,
-                )
+            if (isLogVisible) {
+                items(messages) { message ->
+                    LogContent(
+                        modifier = Modifier.fillMaxWidth(),
+                        message = message,
+                    )
+                }
+            } else {
+                items(devices) { device ->
+                    PrinterCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        onTap = { viewModel.stream(device) },
+                        model = device,
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+fun LogContent(
+    modifier: Modifier = Modifier,
+    message: EPStreamData,
+) {
+    val text = remember {
+        when (message) {
+            is EPStreamData.Log -> message.value
+            is EPStreamData.Result -> message.value.toString()
+        }
+    }
+
+    Text(
+        modifier = modifier,
+        text = text,
+    )
 }
 
 @Composable

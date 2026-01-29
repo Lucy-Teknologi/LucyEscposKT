@@ -4,6 +4,7 @@ import app.lucys.lib.lucyescposkt.core.escpos.EPOfflineStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPaperStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrintResult
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrinterStatus
+import app.lucys.lib.lucyescposkt.core.escpos.EPStreamData
 import app.lucys.lib.lucyescposkt.core.escpos.connection.EPConnection
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPStatusConstants
 import app.lucys.lib.lucyescposkt.core.printer.PrinterConnectionSpec
@@ -25,6 +26,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -226,6 +230,12 @@ class KtorEPConnection(
         }
 
         EPPrintResult.NotConnected
+    }
+
+    override fun stream(command: ByteArray, timeout: Duration): Flow<EPStreamData> {
+        return flow {
+            emit(EPStreamData.Result(send(command, timeout)))
+        }
     }
 
 }

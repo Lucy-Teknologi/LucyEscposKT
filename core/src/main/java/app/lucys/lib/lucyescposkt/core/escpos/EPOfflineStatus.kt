@@ -14,4 +14,6 @@ data class EPOfflineStatus(
             didErrorOccur = false
         )
     }
+
+    fun isFalseNegative() = !isCoverOpen && !isFeedPressed && !isOutOfPaper && !didErrorOccur
 }
