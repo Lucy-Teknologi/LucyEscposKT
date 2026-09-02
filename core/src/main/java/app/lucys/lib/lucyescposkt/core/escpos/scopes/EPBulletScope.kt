@@ -32,11 +32,27 @@ class EPBulletScope(
             return accumulator
         }
 
+        val effectiveLimit = maxOf(1, limit)
+        val firstText = texts.first()
+
+        // If the first word itself exceeds limit, chunk it so we make guaranteed progress
+        if (firstText.length > effectiveLimit) {
+            val chunk = firstText.take(effectiveLimit)
+            val remainder = firstText.substring(effectiveLimit)
+            val nextTexts = listOf(remainder) + texts.drop(1)
+            return accumulateTexts(
+                texts = nextTexts,
+                limit = limit,
+                accumulator = accumulator + chunk,
+            )
+        }
+
         val string = StringBuilder()
         var counter = 0
 
         for (text in texts) {
-            if (string.length + text.length + 1 > limit) {
+            val additionalLength = if (counter > 0) text.length + 1 else text.length
+            if (string.length + additionalLength > effectiveLimit) {
                 break
             }
 
@@ -49,7 +65,7 @@ class EPBulletScope(
         }
 
         return accumulateTexts(
-            texts = texts.drop(counter),
+            texts = texts.drop(maxOf(1, counter)),
             limit = limit,
             accumulator = accumulator + string.toString(),
         )
@@ -65,8 +81,8 @@ class EPBulletScope(
             val spaceAppend = " ".repeat(spacing).toByteArray()
             builder.raw(*spaceAppend)
 
-            val indentation = indent + spacing + 1
-            val limit = builder.cpl - indentation
+            val indentation = indent + spacing + symbol.length
+            val limit = maxOf(1, builder.cpl - indentation)
 
             if (item.length <= limit) {
                 builder.text(item)
