@@ -4,13 +4,11 @@ import app.lucys.lib.lucyescposkt.core.escpos.EPOfflineStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPaperStatus
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrintResult
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrinterStatus
-import app.lucys.lib.lucyescposkt.core.escpos.EPStreamData
+import app.lucys.lib.lucyescposkt.core.escpos.command.EPWaitType
 import app.lucys.lib.lucyescposkt.core.escpos.connection.EPConnection
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPStatusConstants
 import app.lucys.lib.lucyescposkt.core.printer.PrinterConnectionSpec
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.network.selector.ActorSelectorManager
+import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.Socket
 import io.ktor.network.sockets.aSocket
@@ -19,66 +17,63 @@ import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
-import io.ktor.utils.io.cancel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.experimental.and
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 
 class KtorEPConnection(
     override val spec: PrinterConnectionSpec.TCP,
-    val client: HttpClient? = null,
+    override val waitType: EPWaitType = EPWaitType.WAIT,
 ) : EPConnection {
 
-    private var _client: HttpClient? = null
+    private var _selectorManager: SelectorManager? = null
     private var _socket: Socket? = null
 
-
     override suspend fun isConnected(): Boolean {
-        return _socket?.isClosed == false && _client?.isActive == true
+        return _socket != null && _socket?.isClosed == false
     }
 
     override suspend fun connect(timeout: Duration): Boolean = withContext(Dispatchers.IO) {
         try {
             withTimeout(timeout) {
-                _client = client ?: HttpClient(OkHttp)
-
-                val manager = ActorSelectorManager(Dispatchers.IO)
+                val selector = SelectorManager(Dispatchers.IO)
+                _selectorManager = selector
                 val address = InetSocketAddress(spec.ip, spec.port.toInt())
-                _socket = aSocket(manager).tcp().connect(address)
+                _socket = aSocket(selector).tcp().connect(address)
             }
-
-            return@withContext true
-        } catch (e: Exception) {
-            e.printStackTrace()
+            true
+        } catch (_: Exception) {
             disconnect()
-            return@withContext false
+            false
         }
     }
 
-    override suspend fun disconnect() {
-        _client?.close()
-        _client = null
-
-        _socket?.close()
+    override suspend fun disconnect() = withContext(Dispatchers.IO) {
+        try {
+            _socket?.close()
+        } catch (_: Exception) {}
         _socket = null
+
+        try {
+            _selectorManager?.close()
+        } catch (_: Exception) {}
+        _selectorManager = null
     }
 
     private suspend fun getPaperStatus(
         input: ByteReadChannel,
         output: ByteWriteChannel,
-    ): EPPaperStatus {
+        timeout: Duration = 2.seconds,
+    ): EPPaperStatus = withTimeout(timeout) {
         output.writeFully(EPStatusConstants.PAPER_SENSOR_STATUS)
         output.flush()
 
@@ -86,28 +81,29 @@ class KtorEPConnection(
 
         val hasContent = input.awaitContent()
         if (!hasContent) {
-            return EPPaperStatus.UNKNOWN
+            return@withTimeout EPPaperStatus.UNKNOWN
         }
 
         val response = input.readByte()
 
         val isOutOfPaper = response.and(EPStatusConstants.PAPER_EMPTY_STATUS) != 0.toByte()
         if (isOutOfPaper) {
-            return EPPaperStatus.EMPTY
+            return@withTimeout EPPaperStatus.EMPTY
         }
 
         val isLowOnPaper = response.and(EPStatusConstants.PAPER_LOW_STATUS) != 0.toByte()
         if (isLowOnPaper) {
-            return EPPaperStatus.LOW
+            return@withTimeout EPPaperStatus.LOW
         }
 
-        return EPPaperStatus.AVAILABLE
+        return@withTimeout EPPaperStatus.AVAILABLE
     }
 
     private suspend fun getStatusOverview(
         input: ByteReadChannel,
         output: ByteWriteChannel,
-    ): EPPrinterStatus? {
+        timeout: Duration = 2.seconds,
+    ): EPPrinterStatus? = withTimeout(timeout) {
         output.writeFully(EPStatusConstants.PRINTER_STATUS)
         output.flush()
 
@@ -115,20 +111,21 @@ class KtorEPConnection(
 
         val hasContent = input.awaitContent()
         if (!hasContent) {
-            return null
+            return@withTimeout null
         }
 
         val response = input.readByte()
         val isOffline = response.and(EPStatusConstants.STATUS_CHECK_OFFLINE) != 0.toByte()
         val isBusy = response.and(EPStatusConstants.STATUS_CHECK_BUSY) != 0.toByte()
 
-        return EPPrinterStatus(isOnline = !isOffline, isBusy = isBusy)
+        return@withTimeout EPPrinterStatus(isOnline = !isOffline, isBusy = isBusy)
     }
 
     private suspend fun getOfflineStatus(
         input: ByteReadChannel,
         output: ByteWriteChannel,
-    ): EPOfflineStatus? {
+        timeout: Duration = 2.seconds,
+    ): EPOfflineStatus? = withTimeout(timeout) {
         output.writeFully(EPStatusConstants.OFFLINE_CAUSE_STATUS)
         output.flush()
 
@@ -136,7 +133,7 @@ class KtorEPConnection(
 
         val hasContent = input.awaitContent()
         if (!hasContent) {
-            return null
+            return@withTimeout null
         }
 
         val response = input.readByte()
@@ -145,7 +142,7 @@ class KtorEPConnection(
         val isOutOfPaper = response.and(EPStatusConstants.OFFLINE_PAPER_OUT) != 0.toByte()
         val didErrorOccur = response.and(EPStatusConstants.OFFLINE_UNKNOWN_ERROR) != 0.toByte()
 
-        return EPOfflineStatus(
+        EPOfflineStatus(
             isCoverOpen = isCoverOpen,
             isFeedPressed = isFeedPressed,
             isOutOfPaper = isOutOfPaper,
@@ -158,84 +155,50 @@ class KtorEPConnection(
         command: ByteArray,
         timeout: Duration,
     ): EPPrintResult = withContext(Dispatchers.IO) {
-        _socket?.let { socket ->
-            if (socket.isClosed) return@withContext EPPrintResult.NotConnected
+        val socket = _socket
+        if (socket == null || socket.isClosed) return@withContext EPPrintResult.NotConnected
 
+        try {
             val reader = socket.openReadChannel()
             val writer = socket.openWriteChannel(autoFlush = true)
 
-            val initialStatus = getStatusOverview(reader, writer)
-            if (initialStatus == null) {
-                writer.flushAndClose()
-                reader.cancel()
-                return@withContext EPPrintResult.NotConnected
-            }
-
-            if (!initialStatus.isOnline) {
-                val offline = getOfflineStatus(reader, writer)
-                writer.flushAndClose()
-                reader.cancel()
-
-                return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
-            }
-
-            val paperStatus = getPaperStatus(reader, writer)
-
-            if (paperStatus == EPPaperStatus.EMPTY) {
-                writer.flushAndClose()
-                reader.cancel()
-
-                return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
-            }
-
+            // Direct byte transmission to thermal printer
             writer.writeFully(command)
             writer.flush()
 
-            var status: EPPrinterStatus?
-            try {
-                status = withTimeout(timeout) {
-                    withContext(Dispatchers.IO + NonCancellable) {
-                        getStatusOverview(reader, writer)
-                    }
+            if (waitType == EPWaitType.RT) {
+                val status = withTimeoutOrNull(500.milliseconds) {
+                    getStatusOverview(reader, writer, timeout = 300.milliseconds)
                 }
-            } catch (_: TimeoutCancellationException) {
-                val fail = getOfflineStatus(reader, writer)
-                return@withContext EPPrintResult.Failed(
-                    fail ?: EPOfflineStatus.outOfPaper()
+
+                if (status != null && !status.isOnline) {
+                    val offline = withTimeoutOrNull(300.milliseconds) {
+                        getOfflineStatus(reader, writer, timeout = 200.milliseconds)
+                    }
+                    return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
+                }
+
+                val paperStatus = withTimeoutOrNull(300.milliseconds) {
+                    getPaperStatus(reader, writer, timeout = 200.milliseconds)
+                }
+
+                if (paperStatus == EPPaperStatus.EMPTY) {
+                    return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
+                }
+
+                return@withContext EPPrintResult.Success(
+                    status = status ?: EPPrinterStatus(isOnline = true, isBusy = false),
+                    paperStatus = paperStatus ?: EPPaperStatus.AVAILABLE,
                 )
             }
 
-            if (status == null) {
-                writer.flushAndClose()
-                reader.cancel()
-                return@withContext EPPrintResult.NotConnected
-            }
-
-            if (status.isOnline) {
-                val paperStatus = getPaperStatus(reader, writer)
-
-                writer.flushAndClose()
-                reader.cancel()
-
-                return@withContext EPPrintResult.Success(status = status, paperStatus = paperStatus)
-            }
-
-            val offline = getOfflineStatus(reader, writer)
-            writer.flushAndClose()
-            reader.cancel()
-
-            return@withContext offline
-                ?.let { EPPrintResult.Failed(it) }
-                ?: EPPrintResult.Timeout(status)
-        }
-
-        EPPrintResult.NotConnected
-    }
-
-    override fun stream(command: ByteArray, timeout: Duration): Flow<EPStreamData> {
-        return flow {
-            emit(EPStreamData.Result(send(command, timeout)))
+            EPPrintResult.Success(
+                status = EPPrinterStatus(isOnline = true, isBusy = false),
+                paperStatus = EPPaperStatus.AVAILABLE,
+            )
+        } catch (e: Exception) {
+            disconnect()
+            EPPrintResult.NotConnected
         }
     }
-
 }
