@@ -13,6 +13,7 @@ import app.lucys.lib.lucyescposkt.core.escpos.constants.EPStatusConstants
 import app.lucys.lib.lucyescposkt.core.printer.PrinterConnectionSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -198,6 +199,42 @@ class BTManagerEPConnection(
         )
     }
 
+    private suspend fun asyncWaitUntilReady(
+        input: InputStream,
+        output: OutputStream,
+        timeout: Duration = 5.seconds,
+    ): EPPaperStatus = withTimeout(timeout) {
+        output.write(EPStatusConstants.PRINTER_STATUS_AWAIT)
+        output.flush()
+
+        val buffer = ByteArray(1)
+        var bytesRead = -1
+        while (bytesRead <= 0 && isActive) {
+            if (input.available() > 0) {
+                bytesRead = input.read(buffer)
+                break
+            }
+            delay(50)
+        }
+
+        if (bytesRead <= 0) {
+            return@withTimeout EPPaperStatus.AVAILABLE
+        }
+
+        val response = buffer.first()
+        val isOutOfPaper = response.and(EPStatusConstants.PAPER_EMPTY_STATUS) != 0.toByte()
+        if (isOutOfPaper) {
+            return@withTimeout EPPaperStatus.EMPTY
+        }
+
+        val isLowOnPaper = response.and(EPStatusConstants.PAPER_LOW_STATUS) != 0.toByte()
+        if (isLowOnPaper) {
+            return@withTimeout EPPaperStatus.LOW
+        }
+
+        EPPaperStatus.AVAILABLE
+    }
+
     @OptIn(ExperimentalTime::class)
     override suspend fun send(
         command: ByteArray,
@@ -208,43 +245,56 @@ class BTManagerEPConnection(
 
         try {
             val writer = socket.outputStream
+            val reader = socket.inputStream
 
             // Direct byte transmission to thermal printer
             writer.write(command)
             writer.flush()
 
-            // If real-time bidirectional status is requested, probe with short micro-timeout
-            if (waitType == EPWaitType.RT) {
-                val reader = socket.inputStream
-                val status = withTimeoutOrNull(500.milliseconds) {
-                    asyncGetStatusOverview(reader, writer, timeout = 300.milliseconds)
-                }
-
-                if (status != null && !status.isOnline) {
-                    val offline = withTimeoutOrNull(300.milliseconds) {
-                        asyncGetOfflineStatus(reader, writer, timeout = 200.milliseconds)
+            when (waitType) {
+                EPWaitType.RT -> {
+                    // Real-time mode: probe with fast DLE EOT micro-timeouts (ignores GS r)
+                    val status = withTimeoutOrNull(500.milliseconds) {
+                        asyncGetStatusOverview(reader, writer, timeout = 300.milliseconds)
                     }
-                    return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
+
+                    if (status != null && !status.isOnline) {
+                        val offline = withTimeoutOrNull(300.milliseconds) {
+                            asyncGetOfflineStatus(reader, writer, timeout = 200.milliseconds)
+                        }
+                        return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
+                    }
+
+                    val paperStatus = withTimeoutOrNull(300.milliseconds) {
+                        asyncGetPaperStatus(reader, writer, timeout = 200.milliseconds)
+                    }
+
+                    if (paperStatus == EPPaperStatus.EMPTY) {
+                        return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
+                    }
+
+                    EPPrintResult.Success(
+                        status = status ?: EPPrinterStatus(isOnline = true, isBusy = false),
+                        paperStatus = paperStatus ?: EPPaperStatus.AVAILABLE,
+                    )
                 }
 
-                val paperStatus = withTimeoutOrNull(300.milliseconds) {
-                    asyncGetPaperStatus(reader, writer, timeout = 200.milliseconds)
-                }
+                EPWaitType.WAIT -> {
+                    // Synchronous wait: send GS r 1 to wait for buffer drain / paper status
+                    val paperStatus = withTimeoutOrNull(timeout) {
+                        asyncWaitUntilReady(reader, writer, timeout = timeout)
+                    } ?: EPPaperStatus.AVAILABLE
 
-                if (paperStatus == EPPaperStatus.EMPTY) {
-                    return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
-                }
+                    if (paperStatus == EPPaperStatus.EMPTY) {
+                        return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
+                    }
 
-                return@withContext EPPrintResult.Success(
-                    status = status ?: EPPrinterStatus(isOnline = true, isBusy = false),
-                    paperStatus = paperStatus ?: EPPaperStatus.AVAILABLE,
-                )
+                    EPPrintResult.Success(
+                        status = EPPrinterStatus(isOnline = true, isBusy = false),
+                        paperStatus = paperStatus,
+                    )
+                }
             }
-
-            EPPrintResult.Success(
-                status = EPPrinterStatus(isOnline = true, isBusy = false),
-                paperStatus = EPPaperStatus.AVAILABLE,
-            )
         } catch (e: Exception) {
             disconnect()
             EPPrintResult.NotConnected

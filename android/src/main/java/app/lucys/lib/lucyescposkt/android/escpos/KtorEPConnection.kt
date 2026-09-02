@@ -150,6 +150,35 @@ class KtorEPConnection(
         )
     }
 
+    private suspend fun waitUntilReady(
+        input: ByteReadChannel,
+        output: ByteWriteChannel,
+        timeout: Duration = 5.seconds,
+    ): EPPaperStatus = withTimeout(timeout) {
+        output.writeFully(EPStatusConstants.PRINTER_STATUS_AWAIT)
+        output.flush()
+
+        delay(100)
+
+        val hasContent = input.awaitContent()
+        if (!hasContent) {
+            return@withTimeout EPPaperStatus.AVAILABLE
+        }
+
+        val response = input.readByte()
+        val isOutOfPaper = response.and(EPStatusConstants.PAPER_EMPTY_STATUS) != 0.toByte()
+        if (isOutOfPaper) {
+            return@withTimeout EPPaperStatus.EMPTY
+        }
+
+        val isLowOnPaper = response.and(EPStatusConstants.PAPER_LOW_STATUS) != 0.toByte()
+        if (isLowOnPaper) {
+            return@withTimeout EPPaperStatus.LOW
+        }
+
+        EPPaperStatus.AVAILABLE
+    }
+
     @OptIn(ExperimentalTime::class)
     override suspend fun send(
         command: ByteArray,
@@ -166,36 +195,50 @@ class KtorEPConnection(
             writer.writeFully(command)
             writer.flush()
 
-            if (waitType == EPWaitType.RT) {
-                val status = withTimeoutOrNull(500.milliseconds) {
-                    getStatusOverview(reader, writer, timeout = 300.milliseconds)
-                }
-
-                if (status != null && !status.isOnline) {
-                    val offline = withTimeoutOrNull(300.milliseconds) {
-                        getOfflineStatus(reader, writer, timeout = 200.milliseconds)
+            when (waitType) {
+                EPWaitType.RT -> {
+                    // Real-time mode: probe with fast DLE EOT micro-timeouts (ignores GS r)
+                    val status = withTimeoutOrNull(500.milliseconds) {
+                        getStatusOverview(reader, writer, timeout = 300.milliseconds)
                     }
-                    return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
+
+                    if (status != null && !status.isOnline) {
+                        val offline = withTimeoutOrNull(300.milliseconds) {
+                            getOfflineStatus(reader, writer, timeout = 200.milliseconds)
+                        }
+                        return@withContext EPPrintResult.Failed(offline ?: EPOfflineStatus.outOfPaper())
+                    }
+
+                    val paperStatus = withTimeoutOrNull(300.milliseconds) {
+                        getPaperStatus(reader, writer, timeout = 200.milliseconds)
+                    }
+
+                    if (paperStatus == EPPaperStatus.EMPTY) {
+                        return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
+                    }
+
+                    EPPrintResult.Success(
+                        status = status ?: EPPrinterStatus(isOnline = true, isBusy = false),
+                        paperStatus = paperStatus ?: EPPaperStatus.AVAILABLE,
+                    )
                 }
 
-                val paperStatus = withTimeoutOrNull(300.milliseconds) {
-                    getPaperStatus(reader, writer, timeout = 200.milliseconds)
-                }
+                EPWaitType.WAIT -> {
+                    // Synchronous wait: send GS r 1 to wait for buffer drain / paper status
+                    val paperStatus = withTimeoutOrNull(timeout) {
+                        waitUntilReady(reader, writer, timeout = timeout)
+                    } ?: EPPaperStatus.AVAILABLE
 
-                if (paperStatus == EPPaperStatus.EMPTY) {
-                    return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
-                }
+                    if (paperStatus == EPPaperStatus.EMPTY) {
+                        return@withContext EPPrintResult.Failed(offlineStatus = EPOfflineStatus.outOfPaper())
+                    }
 
-                return@withContext EPPrintResult.Success(
-                    status = status ?: EPPrinterStatus(isOnline = true, isBusy = false),
-                    paperStatus = paperStatus ?: EPPaperStatus.AVAILABLE,
-                )
+                    EPPrintResult.Success(
+                        status = EPPrinterStatus(isOnline = true, isBusy = false),
+                        paperStatus = paperStatus,
+                    )
+                }
             }
-
-            EPPrintResult.Success(
-                status = EPPrinterStatus(isOnline = true, isBusy = false),
-                paperStatus = EPPaperStatus.AVAILABLE,
-            )
         } catch (e: Exception) {
             disconnect()
             EPPrintResult.NotConnected
