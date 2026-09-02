@@ -14,10 +14,8 @@ import app.lucys.lib.lucyescposkt.core.printer.PrinterModel
 import app.lucys.lib.lucyescposkt.data.BluetoothPrinterScanner
 import app.lucys.lib.lucyescposkt.data.CoilImageLoader
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -280,10 +278,6 @@ class MainViewModel @Inject constructor(
             }
 
             connection.connect()
-            connection
-                .stream(command, 10.seconds)
-                .flowOn(Dispatchers.IO)
-                .collect { data -> _messages.update { old -> old + data } }
             connection.disconnect()
         }
     }
