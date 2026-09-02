@@ -11,20 +11,29 @@ class EPTabScope(
     private val builder: EPPrintCommandBuilder,
     private val tab: EPTabPosition,
 ) {
-    private var leftText: String = ""
-    private var rightText: String = ""
+    private val rows = mutableListOf<Pair<String, String>>()
+    private var pendingLeft: String = ""
+    private var pendingRight: String = ""
 
     fun set(left: String, right: String) {
-        leftText = left
-        rightText = right
+        commitPending()
+        rows.add(left to right)
     }
 
     fun setLeft(string: String) {
-        leftText = string
+        pendingLeft = string
     }
 
     fun setRight(string: String) {
-        rightText = string
+        pendingRight = string
+    }
+
+    private fun commitPending() {
+        if (pendingLeft.isNotEmpty() || pendingRight.isNotEmpty()) {
+            rows.add(pendingLeft to pendingRight)
+            pendingLeft = ""
+            pendingRight = ""
+        }
     }
 
     private fun setTabPosition(pos: Int) {
@@ -35,9 +44,9 @@ class EPTabScope(
         builder.raw(*byteArrayOf(0x09))
     }
 
-    private fun fixed(value: Int, spacing: Int, alignment: EPTabHorAlignment) {
-        val leftMaxLength = value - spacing
-        val rightMaxLength = builder.cpl - value
+    private fun fixed(leftText: String, rightText: String, value: Int, spacing: Int, alignment: EPTabHorAlignment) {
+        val leftMaxLength = maxOf(1, value - spacing)
+        val rightMaxLength = maxOf(1, builder.cpl - value)
 
         setTabPosition(value)
 
@@ -49,8 +58,11 @@ class EPTabScope(
             moveToTab()
 
             if (alignment == EPTabHorAlignment.RIGHT) {
-                val padding = " ".repeat(rightMaxLength - chunkedRight.first().length)
-                builder.raw(*padding.toByteArray())
+                val paddingLength = maxOf(0, rightMaxLength - chunkedRight.first().length)
+                if (paddingLength > 0) {
+                    val padding = " ".repeat(paddingLength)
+                    builder.raw(*padding.toByteArray())
+                }
             }
 
             builder.raw(*chunkedRight.first().toByteArray())
@@ -71,7 +83,7 @@ class EPTabScope(
             moveToTab()
 
             if (right != null) {
-                val leftover = rightMaxLength - right.length
+                val leftover = maxOf(0, rightMaxLength - right.length)
 
                 // Indent text to make it look like it's aligned to the right
                 if (leftover > 0 && alignment == EPTabHorAlignment.RIGHT) {
@@ -86,9 +98,9 @@ class EPTabScope(
         }
     }
 
-    private fun weighted(weight: Double, spacing: Int, alignment: EPTabHorAlignment) {
+    private fun weighted(leftText: String, rightText: String, weight: Double, spacing: Int, alignment: EPTabHorAlignment) {
         val weightedCPL = floor(builder.cpl * weight).toInt()
-        fixed(weightedCPL, spacing, alignment)
+        fixed(leftText, rightText, weightedCPL, spacing, alignment)
     }
 
     private tailrec fun accumulateTexts(
@@ -100,17 +112,31 @@ class EPTabScope(
             return accumulator
         }
 
+        val effectiveLimit = maxOf(1, limit)
+        val firstText = texts.first()
+
+        // If the first word itself exceeds limit, chunk it so we make guaranteed progress
+        if (firstText.length > effectiveLimit) {
+            val chunk = firstText.take(effectiveLimit)
+            val remainder = firstText.substring(effectiveLimit)
+            val nextTexts = listOf(remainder) + texts.drop(1)
+            return accumulateTexts(
+                texts = nextTexts,
+                limit = limit,
+                accumulator = accumulator + chunk,
+            )
+        }
+
         val string = StringBuilder()
         var counter = 0
 
         for (text in texts) {
-            val length = string.length + text.length
-
-            if (length > limit) {
+            val additionalLength = if (counter > 0) text.length + 1 else text.length
+            if (string.length + additionalLength > effectiveLimit) {
                 break
             }
 
-            if (counter > 0 && length + 1 <= limit) {
+            if (counter > 0) {
                 string.append(" ")
             }
 
@@ -119,17 +145,13 @@ class EPTabScope(
         }
 
         return accumulateTexts(
-            texts = texts.drop(counter),
+            texts = texts.drop(maxOf(1, counter)),
             limit = limit,
             accumulator = accumulator + string.trim().toString(),
         )
     }
 
-    /**
-     * Process the current text to the command buffer then reset the
-     * texts to empty.
-     */
-    fun flush() {
+    private fun renderRow(leftText: String, rightText: String) {
         if (leftText.isEmpty() && rightText.isEmpty()) {
             return
         }
@@ -141,11 +163,24 @@ class EPTabScope(
         }
 
         when (tab) {
-            is EPTabPosition.Fixed -> fixed(tab.value, tab.spacing, tab.alignment)
-            is EPTabPosition.Weighted -> weighted(tab.weight, tab.spacing, tab.alignment)
+            is EPTabPosition.Fixed -> fixed(leftText, rightText, tab.value, tab.spacing, tab.alignment)
+            is EPTabPosition.Weighted -> weighted(leftText, rightText, tab.weight, tab.spacing, tab.alignment)
+        }
+    }
+
+    /**
+     * Process all accumulated rows to the command buffer then reset the queue.
+     */
+    fun flush() {
+        commitPending()
+        if (rows.isEmpty()) {
+            return
         }
 
-        this.leftText = ""
-        this.rightText = ""
+        for ((left, right) in rows) {
+            renderRow(left, right)
+        }
+
+        rows.clear()
     }
 }
