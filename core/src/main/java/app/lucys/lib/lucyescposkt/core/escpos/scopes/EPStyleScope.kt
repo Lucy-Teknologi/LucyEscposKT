@@ -2,62 +2,42 @@ package app.lucys.lib.lucyescposkt.core.escpos.scopes
 
 import app.lucys.lib.lucyescposkt.core.escpos.EPPrintCommandBuilder
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_BOLD
-import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_OFF
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_ON
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_TALL
 import app.lucys.lib.lucyescposkt.core.escpos.constants.EPPrintConstants.STYLE_WIDE
 
 class EPStyleScope(
-    private val isBold: Boolean,
-    private val isWide: Boolean,
-    private val isTall: Boolean,
+    private val currentStyle: Int,
     private val builder: EPPrintCommandBuilder,
 ) {
-    private val buffer = mutableListOf<String>()
-
     fun bold(setup: EPStyleScope.() -> Unit) {
-        val scope = EPStyleScope(true, isWide, isTall, builder)
-        scope.setup()
-        scope.build()
+        enterStyle(currentStyle or STYLE_BOLD, setup)
     }
 
     fun wide(setup: EPStyleScope.() -> Unit) {
-        val scope = EPStyleScope(isBold, true, isTall, builder)
-        scope.setup()
-        scope.build()
+        enterStyle(currentStyle or STYLE_WIDE, setup)
     }
 
     fun tall(setup: EPStyleScope.() -> Unit) {
-        val scope = EPStyleScope(isBold, isWide, true, builder)
-        scope.setup()
-        scope.build()
+        enterStyle(currentStyle or STYLE_TALL, setup)
     }
 
     fun text(string: String) {
-        buffer.add(string)
+        builder.text(string)
     }
 
-    fun build() {
-        if (buffer.isEmpty()) {
-            return
-        }
+    fun raw(vararg bytes: Byte) {
+        builder.raw(*bytes)
+    }
 
-        var styleByte = 0
-        if (isBold) {
-            styleByte = styleByte or STYLE_BOLD
-        }
-        if (isTall) {
-            styleByte = styleByte or STYLE_TALL
-        }
-        if (isWide) {
-            styleByte = styleByte or STYLE_WIDE
-        }
+    fun feed(lines: Int = 1) {
+        builder.feed(lines)
+    }
 
+    private fun enterStyle(styleByte: Int, setup: EPStyleScope.() -> Unit) {
         builder.raw(*STYLE_ON, styleByte.toByte())
-        for (text in buffer) {
-            builder.text(text)
-        }
-        buffer.clear()
-        builder.raw(*STYLE_OFF)
+        val nestedScope = EPStyleScope(currentStyle = styleByte, builder = builder)
+        nestedScope.setup()
+        builder.raw(*STYLE_ON, currentStyle.toByte())
     }
 }

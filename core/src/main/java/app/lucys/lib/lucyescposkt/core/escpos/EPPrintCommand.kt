@@ -10,13 +10,14 @@ import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPAlignmentScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPBulletScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPStyleScope
 import app.lucys.lib.lucyescposkt.core.escpos.scopes.EPTabScope
+import java.io.ByteArrayOutputStream
 
 // TODO: Update, account for max character count when needed
 class EPPrintCommandBuilder(val cpl: Int) {
-    private val commands = mutableListOf<Byte>()
+    private val buffer = ByteArrayOutputStream()
 
     fun raw(vararg bytes: Byte) {
-        commands.addAll(bytes.toList())
+        buffer.write(bytes)
     }
 
     fun initialize() {
@@ -30,27 +31,29 @@ class EPPrintCommandBuilder(val cpl: Int) {
 
     fun feed(lines: Int = 1) {
         repeat(lines) {
-            raw(*CR)
             raw(*LF)
         }
     }
 
     fun bold(setup: EPStyleScope.() -> Unit) {
-        val scope = EPStyleScope(isBold = true, isWide = false, isTall = false, builder = this)
+        raw(*EPPrintConstants.STYLE_ON, EPPrintConstants.STYLE_BOLD.toByte())
+        val scope = EPStyleScope(currentStyle = EPPrintConstants.STYLE_BOLD, builder = this)
         scope.setup()
-        scope.build()
+        raw(*EPPrintConstants.STYLE_OFF)
     }
 
     fun wide(setup: EPStyleScope.() -> Unit) {
-        val scope = EPStyleScope(isBold = false, isWide = true, isTall = false, builder = this)
+        raw(*EPPrintConstants.STYLE_ON, EPPrintConstants.STYLE_WIDE.toByte())
+        val scope = EPStyleScope(currentStyle = EPPrintConstants.STYLE_WIDE, builder = this)
         scope.setup()
-        scope.build()
+        raw(*EPPrintConstants.STYLE_OFF)
     }
 
     fun tall(setup: EPStyleScope.() -> Unit) {
-        val scope = EPStyleScope(isBold = false, isWide = false, isTall = true, builder = this)
+        raw(*EPPrintConstants.STYLE_ON, EPPrintConstants.STYLE_TALL.toByte())
+        val scope = EPStyleScope(currentStyle = EPPrintConstants.STYLE_TALL, builder = this)
         scope.setup()
-        scope.build()
+        raw(*EPPrintConstants.STYLE_OFF)
     }
 
     fun align(alignment: EPPrintAlignment, setup: EPAlignmentScope.() -> Unit) {
@@ -115,7 +118,7 @@ class EPPrintCommandBuilder(val cpl: Int) {
     }
 
     fun build(): ByteArray {
-        return commands.toByteArray()
+        return buffer.toByteArray()
     }
 }
 
