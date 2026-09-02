@@ -9,8 +9,8 @@ object EPStatusConstants {
 
     val OFFLINE_CAUSE_STATUS = DLE_EOT + byteArrayOf(0x02)
     val ERROR_CAUSE_STATS = DLE_EOT + byteArrayOf(0x03)
-    val PAPER_SENSOR_STATUS = DLE_EOT + byteArrayOf(0x04)
 
+    val PAPER_SENSOR_STATUS = DLE_EOT + byteArrayOf(0x04)
     const val DEFAULT_RESPONSE_BYTE = 18.toByte() // 00010010b
 
     const val PAPER_LOW_STATUS = 0x0C.toByte()
