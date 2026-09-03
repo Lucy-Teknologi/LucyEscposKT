@@ -37,6 +37,8 @@ class KtorEPConnection(
 
     private var _selectorManager: SelectorManager? = null
     private var _socket: Socket? = null
+    private var _reader: ByteReadChannel? = null
+    private var _writer: ByteWriteChannel? = null
 
     override suspend fun isConnected(): Boolean {
         return _socket != null && _socket?.isClosed == false
@@ -48,7 +50,10 @@ class KtorEPConnection(
                 val selector = SelectorManager(Dispatchers.IO)
                 _selectorManager = selector
                 val address = InetSocketAddress(spec.ip, spec.port.toInt())
-                _socket = aSocket(selector).tcp().connect(address)
+                val socket = aSocket(selector).tcp().connect(address)
+                _socket = socket
+                _reader = socket.openReadChannel()
+                _writer = socket.openWriteChannel(autoFlush = true)
             }
             true
         } catch (_: Exception) {
@@ -58,6 +63,12 @@ class KtorEPConnection(
     }
 
     override suspend fun disconnect() = withContext(Dispatchers.IO) {
+        try {
+            _writer?.flushAndClose()
+        } catch (_: Exception) {}
+        _writer = null
+        _reader = null
+
         try {
             _socket?.close()
         } catch (_: Exception) {}
@@ -185,12 +196,13 @@ class KtorEPConnection(
         timeout: Duration,
     ): EPPrintResult = withContext(Dispatchers.IO) {
         val socket = _socket
-        if (socket == null || socket.isClosed) return@withContext EPPrintResult.NotConnected
+        val reader = _reader
+        val writer = _writer
+        if (socket == null || socket.isClosed || reader == null || writer == null) {
+            return@withContext EPPrintResult.NotConnected
+        }
 
         try {
-            val reader = socket.openReadChannel()
-            val writer = socket.openWriteChannel(autoFlush = true)
-
             // Direct byte transmission to thermal printer
             writer.writeFully(command)
             writer.flush()
