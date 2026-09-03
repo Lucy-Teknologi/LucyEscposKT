@@ -55,9 +55,10 @@ class BTManagerEPConnection(
             withTimeout(timeout) {
                 var socket: BluetoothSocket? = null
 
-                // Method 1: Standard Secure RFCOMM
+                // Method 1: Direct Channel 1 Reflection (fastest: bypasses slow over-the-air SDP lookup)
                 try {
-                    socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+                    val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                    socket = method.invoke(device, 1) as BluetoothSocket
                     _socket = socket
                     socket.connect()
                 } catch (_: Exception) {
@@ -65,7 +66,7 @@ class BTManagerEPConnection(
                     socket = null
                 }
 
-                // Method 2: Insecure RFCOMM (bypasses PIN / pairing quirks on budget printers)
+                // Method 2: Insecure RFCOMM with SPP UUID (fallback for devices requiring SDP)
                 if (socket == null || !socket.isConnected) {
                     try {
                         socket = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
@@ -77,11 +78,10 @@ class BTManagerEPConnection(
                     }
                 }
 
-                // Method 3: Direct Channel 1 Reflection (fallback for budget thermal printers)
+                // Method 3: Standard Secure RFCOMM (final fallback)
                 if (socket == null || !socket.isConnected) {
                     try {
-                        val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                        socket = method.invoke(device, 1) as BluetoothSocket
+                        socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
                         _socket = socket
                         socket.connect()
                     } catch (_: Exception) {
